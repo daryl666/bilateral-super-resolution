@@ -57,7 +57,8 @@ else
                 B(k) = i;
                 k = k + 1;
             end
-        end  
+        end
+        %   
         temp = A;
         if temp(1) > 0 
             start = 1;

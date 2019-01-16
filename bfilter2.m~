@@ -101,20 +101,14 @@ close(h);
 % Implements bilateral filter for color images.  
 function B = bfltColor(A,w,sigma_d,sigma_r)  
   
-% % Convert input sRGB image to CIELab color space.  
-% if exist('applycform','file')  
-%    A = applycform(A,makecform('srgb2lab'));  
-% else  
-%    A = colorspace('Lab<-RGB',A);  
-% end  
+% Convert input sRGB image to CIELab color space.  
+if exist('applycform','file')  
+   A = applycform(A,makecform('srgb2lab'));  
+else  
+   A = colorspace('Lab<-RGB',A);  
+end  
 
-for m = 1 : size(A, 1)
-    for n = 1 : size(A, 2)
-        [A(m, n, 1), A(m, n, 2), A(m, n, 3)] ...
-            = rgb2lab(A(m, n, 1), A(m, n, 2), A(m, n, 3));
-    end
-end
-
+for m = 1 : size()
   
 % Pre-compute Gaussian domain weights.  
 [X,Y] = meshgrid(-w:w,-w:w);  
