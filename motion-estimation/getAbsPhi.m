@@ -13,7 +13,7 @@ if strcmp(direction, 'vertical')
         k = 1;
         for i = 1 : rows - 1
             j = i + 1;
-            if A(j) - A(i) > 0
+            if A(j) - A(i) < -1
                 B(k) = i;
                 k = k + 1;
             end
@@ -24,20 +24,25 @@ if strcmp(direction, 'vertical')
             start = 1;
         else
             start = 2;
-            diff = temp(B(2) + 1) - temp(B(1));
+            diff = 2 * pi;
             for i = 1 : B(1)
-               temp(i) = temp(i) + diff;
+               temp(i) = temp(i) - diff;
             end
         end
         for i = start : size(B, 2)
-            diff = temp(B(i) + 1) - temp(B(i));
+            if A(1) > 0
+                diff = 2 * pi * i;
+            else
+                diff = 2 * pi * (i - 1);
+            end
+            
             if i < size(B, 2)
                 for j = B(i) + 1 : B(i + 1) 
-                    temp(j) = temp(j) - diff;
+                    temp(j) = temp(j) + diff;
                 end
             else
                 for j = B(i) + 1 : size(temp, 2) 
-                    temp(j) = temp(j) - diff;
+                    temp(j) = temp(j) + diff;
                 end
             end
         end

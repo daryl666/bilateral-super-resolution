@@ -34,8 +34,8 @@ for i = 1 : rows
         else
             pixNum{1} = pixNum{1} + 1;
         end
-        Res(xRes, yRes, 1, 1) = pixNum(1);
-        Res(xRes, yRes, pixNum{1} + 1, 1:5) = {x, y, rValue, gValue, bValue};
+        Res(xRes, round(y), 1, 1) = pixNum(1);
+        Res(round(x), round(y), pixNum{1} + 1, 1:5) = {x, y, rValue, gValue, bValue};
     end
 end
 

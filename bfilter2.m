@@ -5,18 +5,18 @@
   
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
 % Pre-process input and select appropriate filter.  
-function B = bfilter2(A,w,sigma)  
+function B = bfilter2(Ah,Al,w,sigma)  
   
-% Verify that the input image exists and is valid.  
-if ~exist('A','var') || isempty(A)  
-   error('Input image A is undefined or invalid.');  
-end  
-if ~isfloat(A) || ~sum([1,3] == size(A,3)) || ...  
-      min(A(:)) < 0 || max(A(:)) > 1  
-   error(['Input image A must be a double precision ',...  
-          'matrix of size NxMx1 or NxMx3 on the closed ',...  
-          'interval [0,1].']);        
-end  
+% % Verify that the input image exists and is valid.  
+% if ~exist('A','var') || isempty(A)  
+%    error('Input image A is undefined or invalid.');  
+% end  
+% if ~isfloat(A) || ~sum([1,3] == size(A,3)) || ...  
+%       min(A(:)) < 0 || max(A(:)) > 1  
+%    error(['Input image A must be a double precision ',...  
+%           'matrix of size NxMx1 or NxMx3 on the closed ',...  
+%           'interval [0,1].']);        
+% end  
   
 % Verify bilateral filter window size.  
 if ~exist('w','var') || isempty(w) || ...  
@@ -32,10 +32,10 @@ if ~exist('sigma','var') || isempty(sigma) || ...
 end  
   
 % Apply either grayscale or color bilateral filtering.  
-if size(A,3) == 1  
-   B = bfltGray(A,w,sigma(1),sigma(2));  
+if size(Ah,3) == 1  
+   B = bfltGray(Ah,Al,w,sigma(1),sigma(2));  
 else  
-   B = bfltColor(A,w,sigma(1),sigma(2));  
+   B = bfltColor(Ah,Al,w,sigma(1),sigma(2));  
 end  
   
   
@@ -99,24 +99,28 @@ close(h);
   
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
 % Implements bilateral filter for color images.  
-function B = bfltColor(A,w,sigma_d,sigma_r)  
+function B = bfltColor(Ah,Al,w,sigma_d,sigma_r)  
   
-% % Convert input sRGB image to CIELab color space.  
-% if exist('applycform','file')  
-%    A = applycform(A,makecform('srgb2lab'));  
-% else  
-%    A = colorspace('Lab<-RGB',A);  
-% end  
+% Convert input sRGB image to CIELab color space.  
+if exist('applycform','file')  
+   Ah = applycform(Ah,makecform('srgb2lab'));  
+else  
+   Ah = colorspace('Lab<-RGB',Ah);  
+end  
 
-for m = 1 : size(A, 1)
-    for n = 1 : size(A, 2)
-        [A(m, n, 1), A(m, n, 2), A(m, n, 3)] ...
-            = rgb2lab(A(m, n, 1), A(m, n, 2), A(m, n, 3));
+for m = 1 : size(Al, 1)
+    for n = 1 : size(Al, 2)
+        pixNum = Al{m, n, 1, 1};
+        for p = 2 : pixNum + 1
+            [l, a, b] = ...
+                rgb2lab(Al{m, n, p, 3}, Al{m, n, p, 4}, Al{m, n, p, 5});
+            Al(m, n, p, 3 : 5) = {l, a, b};
+        end
     end
 end
 
   
-% Pre-compute Gaussian domain weights.  
+% 高分辨图像窗口中的定义域核
 [X,Y] = meshgrid(-w:w,-w:w);  
 G = exp(-(X.^2+Y.^2)/(2*sigma_d^2));  
   
@@ -127,31 +131,70 @@ sigma_r = 100*sigma_r;
 h = waitbar(0,'Applying bilateral filter...');  
 set(h,'Name','Bilateral Filter Progress');  
   
+
 % Apply bilateral filter.  
-dim = size(A);  
+dim = size(Ah);  
 B = zeros(dim);  
 for i = 1:dim(1)  
    for j = 1:dim(2)  
         
-         % Extract local region.  
-         iMin = max(i-w,1);  
-         iMax = min(i+w,dim(1));  
-         jMin = max(j-w,1);  
-         jMax = min(j+w,dim(2));  
-         I = A(iMin:iMax,jMin:jMax,:);  
+         % 高分辨率图像的窗口区域
+         ihMin = max(i-w,1);  
+         ihMax = min(i+w,dim(1));  
+         jhMin = max(j-w,1);  
+         jhMax = min(j+w,dim(2));  
+         
+%          低分辨率图像的窗口区域
+         ilMax = floor((ihMax + 1) / 2);
+         ilMin = cell((ihMin + 1) / 2);
+         jlMax = floor((jhMax + 1) / 2);
+         jlMin = cell((jhMin + 1) / 2);
+         
+         Ih = Ah(ihMin:ihMax,jhMin:jhMax,:);  
         
-         % Compute Gaussian range weights.  
-         dL = I(:,:,1)-A(i,j,1);  
-         da = I(:,:,2)-A(i,j,2);  
-         db = I(:,:,3)-A(i,j,3);  
+         % 高分辨率图像窗口中的值域核  
+         dL = Ih(:,:,1)-Ah(i,j,1);  
+         da = Ih(:,:,2)-Ah(i,j,2);  
+         db = Ih(:,:,3)-Ah(i,j,3);  
          H = exp(-(dL.^2+da.^2+db.^2)/(2*sigma_r^2));  
-        
-         % Calculate bilateral filter response.  
-         F = H.*G((iMin:iMax)-i+w+1,(jMin:jMax)-j+w+1);  
-         norm_F = sum(F(:));  
-         B(i,j,1) = sum(sum(F.*I(:,:,1)))/norm_F;  
-         B(i,j,2) = sum(sum(F.*I(:,:,2)))/norm_F;  
-         B(i,j,3) = sum(sum(F.*I(:,:,3)))/norm_F;  
+          
+%          高分辨率图像窗口中的双边权重函数
+         F = H.*G((iMin:iMax)-i+w+1,(jMin:jMax)-j+w+1); 
+         
+         norm_F = sum(F(:));
+         Isum = [sum(sum(F.*Ih(:,:,1))),...
+                 sum(sum(F.*Ih(:,:,2))),...
+                 sum(sum(F.*Ih(:,:,3)))];
+             
+         
+         for il = ilMin : ilMax
+             for jl = jlMin : jlMax
+                 pixGroup = squeeze(Al(il, jl,:, :));
+                 groupSize = pixGroup{1, 1};
+                 for pl = 2 : groupSize + 1
+                     px = pixGroup(pl);
+                     x = 2* px{1} - 1;
+                     y = 2 * px{2} - 1;
+                     if (2 * x - 1) >= ihMin && (2 * x - 1) <= ihMax && ...
+                             (2 * y - 1) >= jhMin && (2 * y - 1) <= jhMax
+                         l_ = px{3};
+                         a_ = px{4};
+                         b_ = px{5};
+                         dl_ = l_ - Ah(i, j, 1);
+                         da_ = a_ - Ah(i, j, 2);
+                         db_ = b_ - Ah(i, j, 3);
+                         Gtemp = exp(-((x - i).^2+(y - j).^2)/(2*sigma_d^2));
+                         Htemp = exp(-(dl_.^2+da_.^2+db_.^2)/(2*sigma_r^2));
+                         Isum = Isum + Gtemp * Htemp * Ah(i, j);
+                         norm_F = norm_F + Gtemp * Htemp;
+                        
+                     end
+                     
+                 end
+             end
+         end
+         
+         B(i, j) = Isum / norm_F;
                   
    end  
    waitbar(i/dim(1));  
